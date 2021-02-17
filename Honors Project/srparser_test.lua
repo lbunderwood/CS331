@@ -36,4 +36,5 @@ testLexsr("*")
 testLexsr("(1 + a) / 6")
 testLexsr("1345678765434567654567")
 testLexsr("+-=/*)(())()()")
+testLexsr("A!@$%^&*()_+=-{}[]\"    '`~VADSD:;<>,.?/|\"#garbage")
 
