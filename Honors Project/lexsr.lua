@@ -245,7 +245,7 @@ function lexsr.lex(program)
             add1()
             state = DONE
             category = lexsr.PUNCT
-            
+             
         -- if we got here, it has to be an illegal character
         else
             add1()
