@@ -1,9 +1,13 @@
--- PA5.hs  INCOMPLETE
+-- PA5.hs
 -- Glenn G. Chappell
 -- 2021-03-16
 --
 -- For CS F331 / CSCE A331 Spring 2021
 -- Solutions to Assignment 5 Exercise B
+
+-- modified 2021-03-22
+-- by Luke Underwood
+-- completed all module components 
 
 module PA5 where
 
