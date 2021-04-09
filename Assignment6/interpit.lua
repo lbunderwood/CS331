@@ -190,7 +190,6 @@ function interpit.interp(ast, state, incall, outcall)
     local interp_stmt
     local eval_expr
 
-
     -- interp_stmt_list
     -- Given the ast for a statement list, execute it.
     function interp_stmt_list(ast)
@@ -211,20 +210,30 @@ function interpit.interp(ast, state, incall, outcall)
         -- write function
         elseif ast[1] == WRITE_STMT then
             for i = 2, #ast do
+                
+                -- write arg: string literal
                 if ast[i][1] == STRLIT_OUT then
                     local str = ast[i][2]
                     outcall(str:sub(2, str:len()-1))
+                    
+                -- write arg: carriage return
                 elseif ast[i][1] == CR_OUT then
                     outcall("\n")
+                    
+                -- write arg: double quote
                 elseif ast[i][1] == DQ_OUT then
                     outcall("\"")
+                    
+                -- write arg: char() call
                 elseif ast[i][1] == CHAR_CALL then
                     local arg = eval_expr(ast[i][2])
                     if arg < 0 or arg > 255 then
                         arg = 0
                     end
                     outcall(string.char(arg))
-                else  -- Expression
+                    
+                -- write arg: integer expression
+                else
                     local val = eval_expr(ast[i])
                     outcall(numToStr(val))
                 end
@@ -234,20 +243,13 @@ function interpit.interp(ast, state, incall, outcall)
         elseif ast[1] == RETURN_STMT then
             state.v["return"] = eval_expr(ast[2])
             
-        -- function definitions and calls
+        -- function definition
         elseif ast[1] == FUNC_DEF then
             local funcname = ast[2]
             local funcbody = ast[3]
             state.f[funcname] = funcbody
-        elseif ast[1] == FUNC_CALL then
-            local funcname = ast[2]
-            local funcbody = state.f[ast[2]]
-            if funcbody == nil then
-                funcbody = { STMT_LIST }
-            end
-            interp_stmt_list(funcbody)
             
-        -- flow-of-control structures
+        -- flow-of-control structure : if
         elseif ast[1] == IF_STMT then
             local execute = false
             for i = 2, #ast do
@@ -261,6 +263,8 @@ function interpit.interp(ast, state, incall, outcall)
                     break
                 end
             end
+            
+        -- flow-of-control structure : for-loop
         elseif ast[1] == FOR_LOOP then
             interp_stmt(ast[2])
             local condition = ast[3]
@@ -271,42 +275,52 @@ function interpit.interp(ast, state, incall, outcall)
                 interp_stmt_list(body)
                 interp_stmt(increment)
             end
+            
+        -- assign statement
         elseif ast[1] == ASSN_STMT then
             local varType = ast[2][1]
             local id = ast[2][2]
             local newVal = ast[3]
             
+            -- assign statement: integer
             if varType == SIMPLE_VAR then
                 state.v[id] = eval_expr(newVal)
+                
+            -- assign statement: array
             elseif varType == ARRAY_VAR then
                 local index = eval_expr(ast[2][3])
                 if state.a[id] == nil then
                     state.a[id] = {}
                 end
-                if state.a[id][index] == nil then
-                    table.insert(state.a[id], index, eval_expr(newVal))
-                else
-                    state.a[id][index] = eval_expr(newVal)
-                end
+                state.a[id][index] = eval_expr(newVal)
             end
+            
+        -- if it isn't a statement, it's a simple expression that needs evaluating.
+        -- this is primarily for the sake of function calls
         else
-            print("*** UNIMPLEMENTED STATEMENT")
+            eval_expr(ast)
         end
     end
 
 
     -- eval_expr
-    -- Given the AST for an expression, evaluate it and return the
-    -- value.
+    -- Given the AST for an expression, evaluate it and return the value.
     function eval_expr(ast)
         local result
         
+        -- numeric literal
         if ast[1] == NUMLIT_VAL then
             result = strToNum(ast[2])
+            
+        -- readnum call
         elseif ast[1] == READNUM_CALL then
             result = strToNum(incall())
+            
+        -- boolean literal
         elseif ast[1] == BOOLLIT_VAL then
             result = boolToInt(ast[2] == "true")
+            
+        -- integer variable
         elseif ast[1] == SIMPLE_VAR then
             local id = ast[2]
             if state.v[id] == nil then
@@ -314,6 +328,8 @@ function interpit.interp(ast, state, incall, outcall)
             else
                 result = state.v[id]
             end
+            
+        -- array variable
         elseif ast[1] == ARRAY_VAR then
             local id = ast[2]
             local index = eval_expr(ast[3])
@@ -322,46 +338,8 @@ function interpit.interp(ast, state, incall, outcall)
             else
                 result = state.a[id][index]
             end
-        elseif ast[1][1] == BIN_OP then
-            local op = ast[1][2]
-            if op == "and" then
-                result = boolToInt(eval_expr(ast[2]) ~= 0 and eval_expr(ast[3]) ~= 0)
-            elseif op == "or" then
-                result = boolToInt(eval_expr(ast[2]) ~= 0 or eval_expr(ast[3]) ~= 0)
-            elseif op == "==" then
-                result = boolToInt(eval_expr(ast[2]) == eval_expr(ast[3]))
-            elseif op == "!=" then
-                result = boolToInt(eval_expr(ast[2]) ~= eval_expr(ast[3]))
-            elseif op == "<" then
-                result = boolToInt(eval_expr(ast[2]) < eval_expr(ast[3]))
-            elseif op == "<=" then
-                result = boolToInt(eval_expr(ast[2]) <= eval_expr(ast[3]))
-            elseif op == ">" then
-                result = boolToInt(eval_expr(ast[2]) > eval_expr(ast[3]))
-            elseif op == ">=" then
-                result = boolToInt(eval_expr(ast[2]) >= eval_expr(ast[3]))
-            elseif op == "+" then
-                result = eval_expr(ast[2]) + eval_expr(ast[3])
-            elseif op == "-" then
-                result = eval_expr(ast[2]) - eval_expr(ast[3])
-            elseif op == "*" then
-                result = eval_expr(ast[2]) * eval_expr(ast[3])
-            elseif eval_expr(ast[3]) == 0 then
-                result = 0
-            elseif op == "/" then
-                result = numToInt(eval_expr(ast[2]) / eval_expr(ast[3]))
-            elseif op == "%" then
-                result = numToInt(eval_expr(ast[2]) % eval_expr(ast[3]))
-            end
-        elseif ast[1][1] == UN_OP then
-            local op = ast[1][2]
-            if op == "+" then
-                result = eval_expr(ast[2])
-            elseif op == "-" then
-                result = eval_expr(ast[2]) * -1
-            elseif op == "not" then
-                result = boolToInt(eval_expr(ast[2]) == 0)
-            end
+            
+        -- function call
         elseif ast[1] == FUNC_CALL then
             local funcname = ast[2]
             local funcbody = state.f[ast[2]]
@@ -369,14 +347,95 @@ function interpit.interp(ast, state, incall, outcall)
                 funcbody = { STMT_LIST }
             end
             interp_stmt_list(funcbody)
-            result = state.v["return"]
-        else
-            print("*** UNIMPLEMENTED EXPRESSION")
-            result = 42  -- DUMMY VALUE
+            if state.v["return"] == nil then
+                result = 0
+            else
+                result = state.v["return"]
+            end
+            
+        -- binary operators
+        elseif ast[1][1] == BIN_OP then
+            local op = ast[1][2]
+            
+            -- binary operator: and
+            if op == "and" then
+                result = boolToInt(eval_expr(ast[2]) ~= 0 and eval_expr(ast[3]) ~= 0)
+            
+            -- binary operator: or
+            elseif op == "or" then
+                result = boolToInt(eval_expr(ast[2]) ~= 0 or eval_expr(ast[3]) ~= 0)
+            
+            -- binary operator: ==
+            elseif op == "==" then
+                result = boolToInt(eval_expr(ast[2]) == eval_expr(ast[3]))
+            
+            -- binary operator: !=
+            elseif op == "!=" then
+                result = boolToInt(eval_expr(ast[2]) ~= eval_expr(ast[3]))
+            
+            -- binary operator: <
+            elseif op == "<" then
+                result = boolToInt(eval_expr(ast[2]) < eval_expr(ast[3]))
+            
+            -- binary operator: <=
+            elseif op == "<=" then
+                result = boolToInt(eval_expr(ast[2]) <= eval_expr(ast[3]))
+            
+            -- binary operator: >
+            elseif op == ">" then
+                result = boolToInt(eval_expr(ast[2]) > eval_expr(ast[3]))
+            
+            -- binary operator: >=
+            elseif op == ">=" then
+                result = boolToInt(eval_expr(ast[2]) >= eval_expr(ast[3]))
+            
+            -- binary operator: +
+            elseif op == "+" then
+                result = numToInt(eval_expr(ast[2]) + eval_expr(ast[3]))
+            
+            -- binary operator: -
+            elseif op == "-" then
+                result = numToInt(eval_expr(ast[2]) - eval_expr(ast[3]))
+            
+            -- binary operator: *
+            elseif op == "*" then
+                result = numToInt(eval_expr(ast[2]) * eval_expr(ast[3]))
+            
+            -- for the final two operators, if the second operand is 0, we return 0
+            elseif eval_expr(ast[3]) == 0 then
+                result = 0
+            
+            -- binary operator: /
+            elseif op == "/" then
+                result = numToInt(eval_expr(ast[2]) / eval_expr(ast[3]))
+            
+            -- binary operator: %
+            elseif op == "%" then
+                result = numToInt(eval_expr(ast[2]) % eval_expr(ast[3]))
+            end
+            
+        -- unary operators
+        elseif ast[1][1] == UN_OP then
+            local op = ast[1][2]
+            
+            -- unary operator: +
+            if op == "+" then
+                result = eval_expr(ast[2])
+            
+            -- unary operator: -
+            elseif op == "-" then
+                result = eval_expr(ast[2]) * -1
+            
+            -- unary operator: not
+            elseif op == "not" then
+                result = boolToInt(eval_expr(ast[2]) == 0)
+            end
         end
 
         return result
     end
+    
+        
 
 
     -- Body of function interp
