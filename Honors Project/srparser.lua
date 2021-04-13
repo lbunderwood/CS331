@@ -47,6 +47,7 @@ function srparser.parse(program)
     
     -- variables
     local stack = { {ntAll, START} } -- top item contains most recent symbol and current state
+    local AST = {}                   -- Abstract Syntax Tree - returned set of instructions for interpreter
     local validSyntax = true         -- this will be set to false if something is wrong, and will be returned at the end
     local currSym                    -- stores current symbol (not yet added to stack)
     local lexArr = {}                -- stores all of the lexemes
@@ -192,12 +193,18 @@ function srparser.parse(program)
     
     -- last two symbols were "(" and term
     local function handle_PART()
-        reduce(termToExpr)
+        if currSym[1] == "*" or currSym[1] == "/" then
+            shift(TSTAR)
+        else
+            reduce(termToExpr)
+        end
     end
     
     -- last two symbols were "(" and expr
     local function handle_PARE()
-        if currSym[1] == ")" then
+        if currSym[1] == "+" or currSym[1] == "-" then
+            shift(EPLUS)
+        elseif currSym[1] == ")" then
             shift(PEP)
         else
             shift(ERR)
@@ -274,7 +281,11 @@ function srparser.parse(program)
     
     -- last three symbols were expr, ("+" | "-"), term
     local function handle_EPT()
-        reduce(eptToExpr)
+        if currSym[1] == "*" or currSym[1] == "/" then
+            shift(TSTAR)
+        else
+            reduce(eptToExpr)
+        end
     end
     
     -- last two symbols were expr, ""
@@ -334,7 +345,7 @@ function srparser.parse(program)
         handlers[currState()]()
     end
     
-    return validSyntax
+    return validSyntax, AST
     
 end
 
