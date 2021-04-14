@@ -67,6 +67,12 @@ function srparser.parse(program)
     -- shift function - adds the current symbol and state to the stack
     local function shift(newState)
         table.insert(stack, {currSym, newState})
+        if  currSym ~= nil and  
+           (currSym[2] == lexsr.OP or 
+            currSym[2] == lexsr.NUMLIT or 
+            currSym[2] == lexsr.ID) then
+                table.insert(AST, currSym)
+        end
         pos = pos + 1
         currSym = lexArr[pos]
     end
@@ -141,6 +147,12 @@ function srparser.parse(program)
         
     -- reduce function - reduce symbols by reversing grammar production
     local function reduce(num)
+        if num == eptToExpr or num == tsfToTerm then
+            table.insert(AST[table.maxn(AST) - 1], AST[table.maxn(AST) - 2])
+            table.insert(AST[table.maxn(AST) - 1], AST[table.maxn(AST)])
+            table.remove(AST, table.maxn(AST) - 2)
+            table.remove(AST, table.maxn(AST))
+        end
         prod = productions[num]
         for i = 1, prod[1], 1 do
             table.remove(stack)
